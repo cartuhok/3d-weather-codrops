@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-//true false for prof or dev
+//true false for prod or dev
 const USE_API_ROUTE = true;
 const API_BASE = '/api';
 const WEATHER_API_BASE = 'https://api.weatherapi.com/v1';
