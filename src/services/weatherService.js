@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-//Set to true in prod
-const USE_API_ROUTE = false;
+//true false for prof or dev
+const USE_API_ROUTE = true;
 const API_BASE = '/api';
 const WEATHER_API_BASE = 'https://api.weatherapi.com/v1';
 const API_KEY = process.env.REACT_APP_WEATHER_API_KEY;
