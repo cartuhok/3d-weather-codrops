@@ -401,8 +401,8 @@ const Scene3D = ({ weatherData, isLoading, onPortalModeChange, onSetExitPortalFu
           )}
           
           <OrbitControls
-            enablePan={true}
-            enableZoom={true}
+            enablePan={false}
+            enableZoom={false}
             enableRotate={true}
             target={portalMode ? [0, 2, 0] : [0, 2, 0]}
             maxPolarAngle={Math.PI / 1.8}

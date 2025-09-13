@@ -15,7 +15,7 @@ Our weather world is built on a foundation of modern web graphics technologies:
 - **React Three Fiber** - The React renderer for Three.js that makes 3D declarative
 - **@react-three/drei** - Essential helpers for common 3D patterns
 - **@react-three/postprocessing** - Advanced post-processing effects
-- **@andersonmancini/lens-flare** - Professional-grade lens flare system
+- **R3F-Ultimate-Lens-Flare** - Professional-grade lens flare system (manually installed)
 - **WeatherAPI.com** - Real-time meteorological data
 - **GLSL Shaders** - Custom fragment shaders for atmospheric effects
 
@@ -25,7 +25,7 @@ The heart of our visualization lies in sophisticated particle systems that trans
 
 ### Rain: Instanced Cylinder Performance
 
-Rain effects demonstrate the critical importance of GPU optimization in real-time 3D applications. Watch as hundreds of silver threads streak downward through the scene, each catching and reflecting light as they fall. Traditional approaches that create individual mesh objects for each raindrop quickly become performance bottlenecks when dealing with this torrent of motion. Instead, we leverage Three.js `InstancedMesh` technology to render 800-1000 raindrops as a single draw call, creating the visual complexity of a downpour without sacrificing smooth 60fps performance.
+Rain effects demonstrate the critical importance of GPU optimization in real-time 3D applications. Watch as hundreds of silver threads streak downward through the scene, each catching and reflecting light as they fall. Traditional approaches that create individual mesh objects for each raindrop quickly become performance bottlenecks when dealing with this torrent of motion. Instead, we leverage Three.js `InstancedMesh` technology to render 800 raindrops as a single draw call, creating the visual complexity of a downpour without sacrificing smooth 60fps performance.
 
 The technique works by defining a single geometry template—in this case, a thin cylinder—and then rendering multiple instances of it at different positions and with varying properties. This approach reduces the overhead of managing individual objects while maintaining the visual complexity needed for convincing precipitation effects:
 
@@ -177,11 +177,14 @@ The weather API integration transforms real meteorological data into 3D scene pa
 ```javascript
 // weatherService.js - API integration
 const response = await axios.get(
-  `${BASE_URL}/forecast.json?key=${API_KEY}&q=${location}&days=3&aqi=no&alerts=no&tz=${Intl.DateTimeFormat().resolvedOptions().timeZone}`
+  `${WEATHER_API_BASE}/forecast.json?key=${API_KEY}&q=${location}&days=3&aqi=no&alerts=no&tz=${Intl.DateTimeFormat().resolvedOptions().timeZone}`,
+  { timeout: 10000 }
 );
+```
 
 The API request includes timezone information to ensure accurate local time calculations for day/night cycles. The `days=3` parameter provides forecast data for the portal system, while `aqi=no&alerts=no` excludes unnecessary data to reduce payload size.
 
+```javascript
 // Smart condition parsing
 export const getWeatherConditionType = (condition) => {
   const conditionLower = condition.toLowerCase();
@@ -219,7 +222,9 @@ As the earth turns, our virtual world transforms through the poetry of light and
 ```javascript
 // Time-based lighting calculation
 const getTimeOfDay = () => {
-  const currentHour = new Date(weatherData.location.localtime).getHours();
+  if (!weatherData?.location?.localtime) return 'day';
+  const localTime = weatherData.location.localtime;
+  const currentHour = new Date(localTime).getHours();
   
   if (currentHour >= 19 || currentHour <= 6) return 'night';
   if (currentHour >= 6 && currentHour < 8) return 'dawn';
@@ -227,39 +232,31 @@ const getTimeOfDay = () => {
   return 'day';
 };
 
-// Dynamic sky positioning for atmospheric scattering
-const getSkyParameters = (timeOfDay) => {
-  switch(timeOfDay) {
-    case 'dawn':
-      return {
-        sunPosition: [100, -5, 100], // Below horizon for purple dawn
-        turbidity: 8,
-        inclination: 0.49,
-        azimuth: 0.25
-      };
-    case 'dusk':
-      return {
-        sunPosition: [-100, -5, 100], // Below horizon for orange sunset
-        turbidity: 8,
-        inclination: 0.49,
-        azimuth: 0.75
-      };
-    case 'night':
-      return {
-        sunPosition: [0, -50, 0], // Hidden for dark sky
-        turbidity: 50,
-        inclination: 0,
-        azimuth: 0
-      };
-    default: // day
-      return {
-        sunPosition: [100, 20, 100], // High position for bright sky
-        turbidity: 2,
-        inclination: 0.49,
-        azimuth: 0.25
-      };
+```javascript
+// Dynamic sky positioning - parameters are configured inline
+sunPosition={(() => {
+  if (timeOfDay === 'dawn') {
+    return [100, -5, 100]; // Sun below horizon for darker dawn
+  } else if (timeOfDay === 'dusk') {
+    return [-100, -5, 100]; // Sun below horizon for darker dusk
+  } else { // day
+    return [100, 20, 100]; // Keep existing day value
   }
-};
+})()}
+inclination={(() => {
+  if (timeOfDay === 'dawn' || timeOfDay === 'dusk') {
+    return 0.6; // Medium inclination for dawn/dusk
+  } else { // day
+    return 0.9; // Keep existing day value
+  }
+})()}
+turbidity={(() => {
+  if (timeOfDay === 'dawn' || timeOfDay === 'dusk') {
+    return 8; // Higher turbidity for atmospheric scattering
+  } else { // day
+    return 2; // Keep existing day value
+  }
+})()}
 ```
 
 The sky parameters control Three.js Sky component settings. The `sunPosition` array determines where the sun appears relative to the scene, while `turbidity` affects atmospheric haze. Lower turbidity values create clearer skies, while higher values simulate hazier conditions. The `inclination` and `azimuth` values fine-tune the sun's apparent position for realistic sky gradients.
@@ -268,14 +265,19 @@ The background color system provides additional atmospheric depth:
 
 ```javascript
 const getBackgroundColor = () => {
-  if (timeOfDay === 'night') return '#0A1428';
-  if (timeOfDay === 'dawn') return '#2D1B3D'; // Deep purple-blue
-  if (timeOfDay === 'dusk') return '#3D2914'; // Deep orange-brown
+  if (isNight) return '#0A1428';
   
-  // Weather-modified day colors
+  // Dawn/dusk specific colors
+  if (timeOfDay === 'dawn') return '#2D1B3D';
+  if (timeOfDay === 'dusk') return '#3D2914';
+  
+  if (!weatherData?.current?.condition) return '#0D7FDB';
+  const condition = weatherData.current.condition.text.toLowerCase();
+  
   if (condition.includes('storm')) return '#263238';
-  if (condition.includes('rain')) return '#546E7A';
-  return '#0D7FDB'; // Clear sky blue
+  if (condition.includes('rain') || condition.includes('overcast')) return '#546E7A';
+  if (condition.includes('cloudy')) return '#1E88E5';
+  return '#0D7FDB';
 };
 ```
 
@@ -301,7 +303,7 @@ Stars only appear during nighttime hours (7 PM to 6 AM), automatically disappear
 
 ## Ultimate Lens Flare Implementation
 
-The crown jewel of our atmospheric effects is the lens flare system—a dazzling display of optical phenomena that brings cinematic authenticity to our 3D world. When the sun emerges through parting clouds, brilliant streaks of light cascade across the viewport, complete with rainbow-tinted ghost reflections, ethereal halos, and those characteristic hexagonal artifacts that make digital sunlight feel tangibly real. The lens flare system uses the R3F-Ultimate-Lens-Flare library (https://github.com/ektogamat/R3F-Ultimate-Lens-Flare), implementing sophisticated 3D-to-screen projection with intelligent occlusion detection and mode-specific configurations:
+The crown jewel of our atmospheric effects is the lens flare system—a dazzling display of optical phenomena that brings cinematic authenticity to our 3D world. When the sun emerges through parting clouds, brilliant streaks of light cascade across the viewport, complete with rainbow-tinted ghost reflections, ethereal halos, and those characteristic hexagonal artifacts that make digital sunlight feel tangibly real. The lens flare system uses the R3F-Ultimate-Lens-Flare library (https://github.com/ektogamat/R3F-Ultimate-Lens-Flare) installed manually following the repository's instructions, implementing sophisticated 3D-to-screen projection with intelligent occlusion detection and mode-specific configurations:
 
 ```javascript
 // Scene3D.js - Dual-mode lens flare configuration
@@ -639,13 +641,62 @@ useFrame(() => {
 Effects only render when weather conditions require them, reducing GPU load:
 
 ```javascript
-// Smart conditional rendering
-{condition === 'rainy' && <Rain />}
-{condition === 'stormy' && <Storm />}
-{(timeOfDay === 'day' || timeOfDay === 'dawn' || timeOfDay === 'dusk') && 
-  <Sun />
-}
-{timeOfDay === 'night' && <Moon />}
+// WeatherVisualization.js - Actual conditional rendering logic
+const renderWeatherEffect = () => {
+  const partlyCloudy = isPartlyCloudy(currentCondition);
+  
+  if (weatherType === 'sunny') {
+    if (partlyCloudy) {
+      return (
+        <>
+          {isNight ? <Moon /> : <Sun />}
+          <Clouds intensity={0.5} speed={0.1} isPartlyCloudy={true} portalMode={portalMode} />
+        </>
+      );
+    }
+    return isNight ? <Moon /> : <Sun />;
+  } else if (weatherType === 'cloudy') {
+    if (partlyCloudy) {
+      return (
+        <>
+          {isNight ? <Moon /> : <Sun />}
+          <Clouds intensity={0.6} speed={0.1} isPartlyCloudy={true} portalMode={portalMode} />
+        </>
+      );
+    }
+    return (
+      <Clouds intensity={0.8} speed={0.1} isPartlyCloudy={false} portalMode={portalMode} />
+    );
+  } else if (weatherType === 'rainy') {
+    return (
+      <>
+        <Clouds intensity={0.8} speed={0.15} portalMode={portalMode} />
+        <Rain count={portalMode ? 100 : 800} />
+      </>
+    );
+  } else if (weatherType === 'snowy') {
+    return (
+      <>
+        <Clouds intensity={0.6} speed={0.05} portalMode={portalMode} />
+        <Snow count={portalMode ? 50 : 400} />
+      </>
+    );
+  } else if (weatherType === 'stormy') {
+    return <Storm />;
+  } else if (weatherType === 'foggy') {
+    return <Clouds intensity={0.9} speed={0.05} portalMode={portalMode} />;
+  } else {
+    if (partlyCloudy) {
+      return (
+        <>
+          {isNight ? <Moon /> : <Sun />}
+          <Clouds intensity={0.5} speed={0.1} isPartlyCloudy={true} portalMode={portalMode} />
+        </>
+      );
+    }
+    return isNight ? <Moon /> : <Sun />;
+  }
+};
 ```
 
 ### Memoization
@@ -696,16 +747,61 @@ html, #root {
 ```
 
 ```javascript
-// App.js - Safe area inset support for bottom elements
+// App.js - Safe area insets and responsive positioning for mobile browsers
 <div 
-  className="absolute bottom-6 right-6 z-20"
+  className="absolute bottom-20 md:bottom-6 right-6 z-20"
   style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
 >
-  {/* Weather stats that adapt to mobile browser UI */}
+  {/* Weather stats positioned higher on mobile to avoid tab bar cutoff */}
 </div>
 ```
 
-These optimizations ensure weather information displays correctly on mobile devices in production, preventing cutoff issues caused by mobile browser UI variations.
+These optimizations ensure weather information displays correctly on mobile devices in production, preventing cutoff issues caused by mobile browser UI variations. The responsive positioning moves weather stats from 24px to 80px from the bottom on mobile devices, providing ample clearance for browsers with bottom tab management.
+
+### 3D Scene Mobile Positioning
+
+The forecast portals and text also receive mobile-specific positioning adjustments to prevent overlap with mobile browser UI:
+
+```javascript
+// ForecastPortals.js - Mobile-responsive portal positioning
+const isMobile = viewport.width < 6;
+const scale = isMobile ? 0.7 : 1;
+const spacing = isMobile ? 2.2 : 3;
+const mobileYPosition = isMobile ? 0.5 : -0.5; // Move portals up on mobile
+
+return (
+  <group position={[0, mobileYPosition, 0]} scale={[scale, scale, scale]}>
+    {/* Forecast portals positioned higher on mobile */}
+  </group>
+);
+```
+
+```javascript
+// Scene3D.js - Responsive forecast text positioning
+const ResponsiveText = ({ isNight, isLoading }) => {
+  const { viewport } = useThree();
+  const isMobile = viewport.width < 6;
+  const textScale = isMobile ? 0.7 : 1;
+  const textPosition = isMobile ? [0, -0.6, 0] : [0, -2.1, 0];
+  
+  if (isLoading) return null;
+  
+  return (
+    <Text
+      position={textPosition}
+      fontSize={0.2 * textScale}
+      color={isNight ? "#FFFFFF" : "#333333"}
+      anchorX="center"
+      anchorY="middle"
+      letterSpacing={0.7}
+    >
+      THREE DAY FORECAST
+    </Text>
+  );
+};
+```
+
+These positioning adjustments move the forecast portals up by 1 unit and the "THREE DAY FORECAST" text up by 1.5 units on mobile devices, ensuring they remain fully visible above mobile browser tab bars.
 
 ### Particle System Performance Optimization
 
@@ -719,20 +815,100 @@ Mobile devices struggle with multiple concurrent particle systems. The applicati
 
 This dramatic reduction (87.5% fewer particles in portals) prevents performance issues when multiple forecast portals show precipitation simultaneously. Instead of rendering 4 × 800 = 3,200 rain particles when the main scene and all three forecast portals show rain, the system renders 800 + (3 × 100) = 1,100 particles total, maintaining smooth 60fps performance on mobile devices.
 
+### Cloud System Optimization
+
+Mobile devices also struggle with multiple cloud systems rendering simultaneously in forecast portals. The cloud component implements adaptive rendering based on portal context:
+
+```javascript
+// Clouds.js - Portal-aware cloud optimization
+const Clouds = ({ intensity = 0.7, speed = 0.1, weatherCondition, isPartlyCloudy = false, portalMode = false }) => {
+  const colors = getCloudColors();
+  
+  // Portal mode: show fewer, centered clouds for performance
+  if (portalMode) {
+    return (
+      <group>
+        <DreiClouds material={THREE.MeshLambertMaterial}>
+          {/* Only 2 centered clouds for portal preview */}
+          <Cloud
+            segments={40}
+            bounds={[8, 3, 3]}
+            volume={8}
+            color={colors.primary}
+            fade={50}
+            speed={speed}
+            opacity={colors.intensity}
+            position={[0, 4, -2]}
+          />
+          <Cloud
+            segments={35}
+            bounds={[6, 2.5, 2.5]}
+            volume={6}
+            color={colors.secondary}
+            fade={60}
+            speed={speed * 0.8}
+            opacity={colors.intensity * 0.8}
+            position={[2, 3, -3]}
+          />
+        </DreiClouds>
+      </group>
+    );
+  }
+  
+  // Full cloud system for main scene and fullscreen portals
+  return (
+    <group>
+      <DreiClouds material={THREE.MeshLambertMaterial}>
+        {/* 6 clouds with full detail for immersive experience */}
+        {/* ... full cloud configuration ... */}
+      </DreiClouds>
+    </group>
+  );
+};
+```
+
+```javascript
+// WeatherVisualization.js - Portal mode propagation
+<Clouds intensity={0.8} speed={0.15} portalMode={portalMode} />
+```
+
+This optimization reduces cloud complexity from 6 detailed clouds to 2 centered clouds in portal previews (67% reduction), while maintaining the full cloud system when users click into individual forecast portals for detailed viewing.
+
 ### Night Sky Mobile Rendering Issues
 
 Mobile GPU limitations with complex atmospheric scattering led to night sky rendering inconsistencies between desktop and mobile devices. The solution replaces the computationally expensive Sky component with a simple black background during nighttime:
 
 ```javascript
 // Scene3D.js - Mobile-optimized night sky rendering
-{!portalMode && isNight && <SceneBackground backgroundColor={'#000000'} />}
+{!portalMode && isNight && <SceneBackground key={`bg-night`} backgroundColor={'#000000'} />}
 
 {/* Sky component only renders for non-night times */}
 {timeOfDay !== 'night' && (
   <Sky
-    sunPosition={getSunPosition(timeOfDay)}
-    inclination={getInclination(timeOfDay)}
-    turbidity={getTurbidity(timeOfDay)}
+    key={`main-sky-${timeOfDay}-${portalMode}`}
+    sunPosition={(() => {
+      if (timeOfDay === 'dawn') {
+        return [100, -5, 100]; // Sun below horizon for darker dawn
+      } else if (timeOfDay === 'dusk') {
+        return [-100, -5, 100]; // Sun below horizon for darker dusk
+      } else { // day
+        return [100, 20, 100]; // Keep existing day value
+      }
+    })()}
+    inclination={(() => {
+      if (timeOfDay === 'dawn' || timeOfDay === 'dusk') {
+        return 0.6; // Medium inclination for dawn/dusk
+      } else { // day
+        return 0.9; // Keep existing day value
+      }
+    })()}
+    turbidity={(() => {
+      if (timeOfDay === 'dawn' || timeOfDay === 'dusk') {
+        return 8; // Higher turbidity for atmospheric scattering
+      } else { // day
+        return 2; // Keep existing day value
+      }
+    })()}
   />
 )}
 
