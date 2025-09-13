@@ -254,7 +254,7 @@ const Scene3D = ({ weatherData, isLoading, onPortalModeChange, onSetExitPortalFu
     const { viewport } = useThree();
     const isMobile = viewport.width < 6;
     const textScale = isMobile ? 0.7 : 1;
-    const textPosition = isMobile ? [0, -1.6, 0] : [0, -2.1, 0];
+    const textPosition = isMobile ? [0, -0.6, 0] : [0, -2.1, 0];
     
     if (isLoading) return null;
     

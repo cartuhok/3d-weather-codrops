@@ -2,7 +2,7 @@ import React from 'react';
 import { Clouds as DreiClouds, Cloud } from '@react-three/drei';
 import * as THREE from 'three';
 
-const Clouds = ({ intensity = 0.7, speed = 0.1, weatherCondition, isPartlyCloudy = false }) => {
+const Clouds = ({ intensity = 0.7, speed = 0.1, weatherCondition, isPartlyCloudy = false, portalMode = false }) => {
   // Determine cloud colors based on weather condition
   const getCloudColors = () => {
     if (weatherCondition === 'stormy' || weatherCondition === 'thunderstorm' || weatherCondition === 'heavy-rain') {
@@ -33,6 +33,39 @@ const Clouds = ({ intensity = 0.7, speed = 0.1, weatherCondition, isPartlyCloudy
   };
 
   const colors = getCloudColors();
+  
+  // Portal mode: show fewer, centered clouds for performance
+  if (portalMode) {
+    return (
+      <group>
+        <DreiClouds material={THREE.MeshLambertMaterial}>
+          {/* Only 2 centered clouds for portal preview */}
+          <Cloud
+            segments={40}
+            bounds={[8, 3, 3]}
+            volume={8}
+            color={colors.primary}
+            fade={50}
+            speed={speed}
+            opacity={colors.intensity}
+            position={[0, 4, -2]}
+          />
+          <Cloud
+            segments={35}
+            bounds={[6, 2.5, 2.5]}
+            volume={6}
+            color={colors.secondary}
+            fade={60}
+            speed={speed * 0.8}
+            opacity={colors.intensity * 0.8}
+            position={[2, 3, -3]}
+          />
+        </DreiClouds>
+      </group>
+    );
+  }
+  
+  // Full cloud system for main scene and fullscreen portals
   return (
     <group>
       <DreiClouds material={THREE.MeshLambertMaterial}>

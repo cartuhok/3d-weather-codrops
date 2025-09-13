@@ -35,7 +35,7 @@ const WeatherVisualization = ({ weatherData, isLoading, portalMode = false }) =>
         return (
           <>
             {isNight ? <Moon /> : <Sun />}
-            <Clouds intensity={0.5} speed={0.1} isPartlyCloudy={true} />
+            <Clouds intensity={0.5} speed={0.1} isPartlyCloudy={true} portalMode={portalMode} />
           </>
         );
       }
@@ -45,37 +45,37 @@ const WeatherVisualization = ({ weatherData, isLoading, portalMode = false }) =>
         return (
           <>
             {isNight ? <Moon /> : <Sun />}
-            <Clouds intensity={0.6} speed={0.1} isPartlyCloudy={true} />
+            <Clouds intensity={0.6} speed={0.1} isPartlyCloudy={true} portalMode={portalMode} />
           </>
         );
       }
       return (
-        <Clouds intensity={0.8} speed={0.1} isPartlyCloudy={false} />
+        <Clouds intensity={0.8} speed={0.1} isPartlyCloudy={false} portalMode={portalMode} />
       );
     } else if (weatherType === 'rainy') {
       return (
         <>
-          <Clouds intensity={0.8} speed={0.15} />
+          <Clouds intensity={0.8} speed={0.15} portalMode={portalMode} />
           <Rain count={portalMode ? 100 : 800} />
         </>
       );
     } else if (weatherType === 'snowy') {
       return (
         <>
-          <Clouds intensity={0.6} speed={0.05} />
+          <Clouds intensity={0.6} speed={0.05} portalMode={portalMode} />
           <Snow count={portalMode ? 50 : 400} />
         </>
       );
     } else if (weatherType === 'stormy') {
       return <Storm />;
     } else if (weatherType === 'foggy') {
-      return <Clouds intensity={0.9} speed={0.05} />;
+      return <Clouds intensity={0.9} speed={0.05} portalMode={portalMode} />;
     } else {
       if (partlyCloudy) {
         return (
           <>
             {isNight ? <Moon /> : <Sun />}
-            <Clouds intensity={0.5} speed={0.1} isPartlyCloudy={true} />
+            <Clouds intensity={0.5} speed={0.1} isPartlyCloudy={true} portalMode={portalMode} />
           </>
         );
       }

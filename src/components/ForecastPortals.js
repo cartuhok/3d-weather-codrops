@@ -149,6 +149,7 @@ const ForecastPortals = ({ weatherData, isLoading, onPortalStateChange }) => {
   const isMobile = viewport.width < 6;
   const scale = isMobile ? 0.7 : 1;
   const spacing = isMobile ? 2.2 : 3;
+  const mobileYPosition = isMobile ? 0.5 : -0.5; // Move portals up on mobile
 
   // Smooth camera animation when transitioning to portal mode
   useFrame((state, delta) => {
@@ -209,7 +210,7 @@ const ForecastPortals = ({ weatherData, isLoading, onPortalStateChange }) => {
 
   return (
     <>
-      <group position={[0, -0.5, 0]} scale={[scale, scale, scale]}>
+      <group position={[0, mobileYPosition, 0]} scale={[scale, scale, scale]}>
         {forecastDays.map((day, index) => (
           <ForecastPortal
             key={day.date}

@@ -148,7 +148,7 @@ function App() {
 
 
           {/* Main Temperature Card - Bottom Left */}
-          <div className={`absolute bottom-6 left-6 z-20 ${textColor}`} style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+          <div className={`absolute bottom-20 md:bottom-6 left-6 z-20 ${textColor}`} style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
             <div className="flex items-end space-x-4">
               <div className="flex items-baseline">
                 <span className="text-6xl font-thin leading-none">
@@ -168,7 +168,7 @@ function App() {
           </div>
           
           {/* Compact Stats Bar - Bottom Right */}
-          <div className={`absolute bottom-6 right-6 z-20 ${textColor}`} style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+          <div className={`absolute bottom-20 md:bottom-6 right-6 z-20 ${textColor}`} style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
             <div className="flex flex-col space-y-3 text-right text-sm">
               <div className="flex items-center justify-end space-x-2">
                 <span className="opacity-60">HUMIDITY</span>
