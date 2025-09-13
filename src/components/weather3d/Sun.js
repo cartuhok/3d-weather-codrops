@@ -8,9 +8,9 @@ const Sun = () => {
   
   const sunTexture = useLoader(THREE.TextureLoader, '/textures/sun_2k.jpg');
   
-  useFrame((state, delta) => {
+  useFrame((state) => {
     if (sunRef.current) {
-      sunRef.current.rotation.y += delta * 0.1;
+      sunRef.current.rotation.y = state.clock.getElapsedTime() * 0.1;
     }
   });
 

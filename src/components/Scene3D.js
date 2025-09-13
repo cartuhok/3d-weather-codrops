@@ -280,42 +280,39 @@ const Scene3D = ({ weatherData, isLoading, onPortalModeChange, onSetExitPortalFu
         style={{ width: '100%', height: '100%' }}
       >
         <Suspense fallback={null}>
-          {/* Scene background only for portal mode - Sky handles main scene */}
+          {/* Scene background - Sky handles day/dawn/dusk, black background for night */}
           {portalMode && <SceneBackground key={`bg-${timeOfDay}-${portalMode}`} backgroundColor={getBackgroundColor()} />}
+          {!portalMode && isNight && <SceneBackground key={`bg-night`} backgroundColor={'#000000'} />}
           
-          {/* Sky with dynamic sun position based on time of day */}
-          <Sky
-            key={`main-sky-${timeOfDay}-${portalMode}`}
-            sunPosition={(() => {
-              if (timeOfDay === 'dawn') {
-                return [100, -5, 100]; // Sun below horizon for darker dawn
-              } else if (timeOfDay === 'dusk') {
-                return [-100, -5, 100]; // Sun below horizon for darker dusk
-              } else if (timeOfDay === 'night') {
-                return [0, 0, 0]; // Keep existing night value
-              } else { // day
-                return [100, 20, 100]; // Keep existing day value
-              }
-            })()}
-            inclination={(() => {
-              if (timeOfDay === 'dawn' || timeOfDay === 'dusk') {
-                return 0.6; // Medium inclination for dawn/dusk
-              } else if (timeOfDay === 'night') {
-                return 0.3; // Keep existing night value
-              } else { // day
-                return 0.9; // Keep existing day value
-              }
-            })()}
-            turbidity={(() => {
-              if (timeOfDay === 'dawn' || timeOfDay === 'dusk') {
-                return 8; // Higher turbidity for atmospheric scattering
-              } else if (timeOfDay === 'night') {
-                return 50; // Keep existing night value
-              } else { // day
-                return 2; // Keep existing day value
-              }
-            })()}
-          />
+          {/* Sky with dynamic sun position - only for non-night times */}
+          {timeOfDay !== 'night' && (
+            <Sky
+              key={`main-sky-${timeOfDay}-${portalMode}`}
+              sunPosition={(() => {
+                if (timeOfDay === 'dawn') {
+                  return [100, -5, 100]; // Sun below horizon for darker dawn
+                } else if (timeOfDay === 'dusk') {
+                  return [-100, -5, 100]; // Sun below horizon for darker dusk
+                } else { // day
+                  return [100, 20, 100]; // Keep existing day value
+                }
+              })()}
+              inclination={(() => {
+                if (timeOfDay === 'dawn' || timeOfDay === 'dusk') {
+                  return 0.6; // Medium inclination for dawn/dusk
+                } else { // day
+                  return 0.9; // Keep existing day value
+                }
+              })()}
+              turbidity={(() => {
+                if (timeOfDay === 'dawn' || timeOfDay === 'dusk') {
+                  return 8; // Higher turbidity for atmospheric scattering
+                } else { // day
+                  return 2; // Keep existing day value
+                }
+              })()}
+            />
+          )}
           
           <ambientLight intensity={(() => {
             if (timeOfDay === 'dawn' || timeOfDay === 'dusk') {

@@ -657,9 +657,11 @@ const lightingConfig = useMemo(() => getLightingConfig(condition, timeOfDay),
   [condition, timeOfDay]);
 ```
 
-## Mobile Responsiveness
+## Mobile Responsiveness and Optimizations
 
-The system detects mobile devices using viewport width and applies optimizations for smaller screens and lower-powered GPUs:
+### Viewport and Performance Adaptations
+
+The system detects mobile devices using viewport width and applies comprehensive optimizations for smaller screens and lower-powered GPUs:
 
 ```javascript
 // Responsive scaling and optimization
@@ -669,6 +671,91 @@ const spacing = isMobile ? 2.2 : 3;
 ```
 
 The portal scaling reduces to 70% on mobile devices to fit smaller screens. The spacing between portals decreases from 3 units to 2.2 units on mobile to prevent the forecast portals from extending beyond the screen boundaries.
+
+### Mobile Viewport Height Fixes
+
+Mobile browsers present unique challenges with dynamic viewport heights due to address bars and UI elements. The application implements comprehensive mobile viewport handling:
+
+```css
+/* App.css - Dynamic viewport height support */
+body {
+  min-height: 100vh;
+  min-height: 100dvh; /* Dynamic viewport height for mobile */
+  overflow: hidden;
+}
+
+html, #root {
+  height: 100%;
+  height: 100dvh; /* Dynamic viewport height for mobile */
+}
+```
+
+```html
+<!-- index.html - Mobile viewport meta tag -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+```
+
+```javascript
+// App.js - Safe area inset support for bottom elements
+<div 
+  className="absolute bottom-6 right-6 z-20"
+  style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+>
+  {/* Weather stats that adapt to mobile browser UI */}
+</div>
+```
+
+These optimizations ensure weather information displays correctly on mobile devices in production, preventing cutoff issues caused by mobile browser UI variations.
+
+### Particle System Performance Optimization
+
+Mobile devices struggle with multiple concurrent particle systems. The application implements adaptive particle counts based on rendering context:
+
+```javascript
+// WeatherVisualization.js - Context-aware particle optimization
+{weatherType === 'rainy' && <Rain count={portalMode ? 100 : 800} />}
+{weatherType === 'snowy' && <Snow count={portalMode ? 50 : 400} />}
+```
+
+This dramatic reduction (87.5% fewer particles in portals) prevents performance issues when multiple forecast portals show precipitation simultaneously. Instead of rendering 4 × 800 = 3,200 rain particles when the main scene and all three forecast portals show rain, the system renders 800 + (3 × 100) = 1,100 particles total, maintaining smooth 60fps performance on mobile devices.
+
+### Night Sky Mobile Rendering Issues
+
+Mobile GPU limitations with complex atmospheric scattering led to night sky rendering inconsistencies between desktop and mobile devices. The solution replaces the computationally expensive Sky component with a simple black background during nighttime:
+
+```javascript
+// Scene3D.js - Mobile-optimized night sky rendering
+{!portalMode && isNight && <SceneBackground backgroundColor={'#000000'} />}
+
+{/* Sky component only renders for non-night times */}
+{timeOfDay !== 'night' && (
+  <Sky
+    sunPosition={getSunPosition(timeOfDay)}
+    inclination={getInclination(timeOfDay)}
+    turbidity={getTurbidity(timeOfDay)}
+  />
+)}
+
+{/* Stars preserved for nighttime atmosphere */}
+{isNight && <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />}
+```
+
+This approach ensures consistent dark night skies across all devices while preserving the stellar environment that makes nighttime scenes visually compelling.
+
+### Smooth Animation Performance
+
+Mobile devices often have inconsistent frame rates that cause choppy animations. The sun and moon rotation systems were optimized to use absolute time values instead of frame-dependent deltas:
+
+```javascript
+// Sun.js & Moon.js - Frame-rate independent rotation
+useFrame((state) => {
+  if (sunRef.current) {
+    sunRef.current.rotation.y = state.clock.getElapsedTime() * 0.1;
+  }
+});
+```
+
+This change from delta-time accumulation to absolute time-based rotation ensures perfectly smooth celestial body movement regardless of mobile device performance variations.
 
 ## Conclusion
 

@@ -56,14 +56,14 @@ const WeatherVisualization = ({ weatherData, isLoading, portalMode = false }) =>
       return (
         <>
           <Clouds intensity={0.8} speed={0.15} />
-          <Rain count={800} />
+          <Rain count={portalMode ? 100 : 800} />
         </>
       );
     } else if (weatherType === 'snowy') {
       return (
         <>
           <Clouds intensity={0.6} speed={0.05} />
-          <Snow count={400} />
+          <Snow count={portalMode ? 50 : 400} />
         </>
       );
     } else if (weatherType === 'stormy') {

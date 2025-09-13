@@ -8,8 +8,10 @@ const Moon = () => {
   
   const moonTexture = useLoader(THREE.TextureLoader, '/textures/moon_2k.jpg');
 
-  useFrame((state, delta) => {
-    moonRef.current.rotation.y += delta * 0.1;
+  useFrame((state) => {
+    if (moonRef.current) {
+      moonRef.current.rotation.y = state.clock.getElapsedTime() * 0.1;
+    }
   });
 
   const moonMaterial = new THREE.MeshLambertMaterial({

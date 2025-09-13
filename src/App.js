@@ -77,7 +77,7 @@ function App() {
   const textColor = (isPortalMode || !isNight) ? 'text-black' : 'text-white';
 
   return (
-    <div className="w-screen h-screen relative overflow-hidden">
+    <div className="w-screen h-screen min-h-dvh relative overflow-hidden">
       {/* 3D Scene fills entire viewport - base layer */}
       <div className="absolute inset-0 z-0">
         <Scene3D 
@@ -148,7 +148,7 @@ function App() {
 
 
           {/* Main Temperature Card - Bottom Left */}
-          <div className={`absolute bottom-6 left-6 z-20 ${textColor}`}>
+          <div className={`absolute bottom-6 left-6 z-20 ${textColor}`} style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
             <div className="flex items-end space-x-4">
               <div className="flex items-baseline">
                 <span className="text-6xl font-thin leading-none">
@@ -168,7 +168,7 @@ function App() {
           </div>
           
           {/* Compact Stats Bar - Bottom Right */}
-          <div className={`absolute bottom-6 right-6 z-20 ${textColor}`}>
+          <div className={`absolute bottom-6 right-6 z-20 ${textColor}`} style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
             <div className="flex flex-col space-y-3 text-right text-sm">
               <div className="flex items-center justify-end space-x-2">
                 <span className="opacity-60">HUMIDITY</span>
