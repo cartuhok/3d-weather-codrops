@@ -7,7 +7,7 @@ const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes in milliseconds
 const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour in milliseconds
 // For testing: temporarily set to 2 requests to test rate limiting quickly
 // Change back to 20 for production
-const MAX_REQUESTS_PER_HOUR = 20;
+const MAX_REQUESTS_PER_HOUR = 15;
 
 // Helper function to get client IP
 function getClientIP(req) {

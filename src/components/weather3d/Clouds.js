@@ -2,26 +2,9 @@ import React from 'react';
 import { Clouds as DreiClouds, Cloud } from '@react-three/drei';
 import * as THREE from 'three';
 
-const Clouds = ({ intensity = 0.7, speed = 0.1, weatherCondition, isPartlyCloudy = false, portalMode = false }) => {
+const Clouds = ({ intensity = 0.7, speed = 0.1, portalMode = false }) => {
   // Determine cloud colors based on weather condition
   const getCloudColors = () => {
-    if (weatherCondition === 'stormy' || weatherCondition === 'thunderstorm' || weatherCondition === 'heavy-rain') {
-      return {
-        primary: '#4A4A4A',
-        secondary: '#5A5A5A', 
-        tertiary: '#3A3A3A',
-        light: '#6A6A6A',
-        intensity: intensity * 1.2
-      };
-    } else if (weatherCondition === 'overcast' || weatherCondition === 'light-rain') {
-      return {
-        primary: '#B0B0B0',
-        secondary: '#C0C0C0',
-        tertiary: '#A0A0A0',
-        light: '#D0D0D0',
-        intensity: intensity * 1.1
-      };
-    } else {
       return {
         primary: '#FFFFFF',
         secondary: '#F8F8F8',
@@ -29,7 +12,6 @@ const Clouds = ({ intensity = 0.7, speed = 0.1, weatherCondition, isPartlyCloudy
         light: '#FAFAFA',
         intensity: intensity
       };
-    }
   };
 
   const colors = getCloudColors();

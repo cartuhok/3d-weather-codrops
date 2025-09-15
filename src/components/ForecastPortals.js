@@ -8,17 +8,6 @@ import * as geometry from "maath/geometry";
 // Extend with rounded plane geometry from maath
 extend(geometry);
 
-const ConditionIcon = ({ position, iconUrl }) => {
-  const texture = useLoader(THREE.TextureLoader, iconUrl);
-  
-  return (
-    <mesh position={position}>
-      <planeGeometry args={[0.3, 0.3]} />
-      <meshBasicMaterial map={texture} transparent />
-    </mesh>
-  );
-};
-
 const ForecastPortal = ({ 
   position, 
   dayData, 

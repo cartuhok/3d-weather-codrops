@@ -1,36 +1,72 @@
 # Creating an Immersive 3D Weather Visualization with React Three Fiber
 
-*A comprehensive guide to building a real-time weather-driven 3D environment with advanced particle systems, dynamic lighting, and photorealistic lens flare effects*
+*Building a real-time 3D weather with particle systems, clouds, and lightning*
 
-**Tags:** 3D, React Three Fiber, Three.js, WebGL, GLSL, Particle Systems, Weather API
+**Tags:** 3D, React Three Fiber, Three.js, WebGL, Particle Systems, Weather API
 
 ---
 
-When weather apps became mundane grids of numbers and icons, we envisioned something more immersive—a living, breathing 3D world that responds to real meteorological data. Picture raindrops cascading through volumetric lighting, snowflakes tumbling through crisp winter air, and lightning illuminating storm clouds with photorealistic brilliance. This tutorial explores the creation of a sophisticated weather visualization that transforms API data into cinematic 3D experiences, where users don't just read about 72°F—they step into a sun-drenched world with lens flares dancing across their vision and forecast portals that shimmer like windows into tomorrow's weather.
+I've always been interested in data visualization using three.js / R3F and I thought a weather webapp would be the perfect place to start. One of my favorite open-source library's, @react-three/drei, already has a bunch of great tools like clouds, sky, and stars that fit perfectly into visualizing the weather in 3D. This tutorial explores how to transform API data into a 3D experience, where we add a little flare and fun to weather visulization.
 
 ## The Technology Stack
 
-Our weather world is built on a foundation of modern web graphics technologies:
+Our weather world is built on a foundation of some of my favorite technologies:
 
-- **React Three Fiber** - The React renderer for Three.js that makes 3D declarative
-- **@react-three/drei** - Essential helpers for common 3D patterns
-- **@react-three/postprocessing** - Advanced post-processing effects
-- **R3F-Ultimate-Lens-Flare** - Professional-grade lens flare system (manually installed)
+- **React Three Fiber** - The React renderer for Three.js
+- **@react-three/drei** - Essential helpers like the ones I mentioned above
+- **R3F-Ultimate-Lens-Flare** - A lens flare system by one of my favorite devs Anderson Mancini
 - **WeatherAPI.com** - Real-time meteorological data
-- **GLSL Shaders** - Custom fragment shaders for atmospheric effects
 
-## Weather-Driven Particle Systems
+## Weather Components
 
-The heart of our visualization lies in sophisticated particle systems that translate weather conditions into immersive 3D experiences. Each droplet, flake, and flash creates a symphony of motion that transforms static weather data into living, breathing atmospheric theater.
+The heart of our visualization lies in conditionally showing a realistic sun, moon, and/or clouds based on the weather results from your city or a city you search for, particles that simulate rain or snow, day/night logic, and some fun lighting effects during a thunderstorm. We'll start by building these weather components and then move to displaying them based on the result of the WeatherAPI call. 
 
-### Rain: Instanced Cylinder Performance
+## Sun + Moon Implimentation 
 
-Rain effects demonstrate the critical importance of GPU optimization in real-time 3D applications. Watch as hundreds of silver threads streak downward through the scene, each catching and reflecting light as they fall. Traditional approaches that create individual mesh objects for each raindrop quickly become performance bottlenecks when dealing with this torrent of motion. Instead, we leverage Three.js `InstancedMesh` technology to render 800 raindrops as a single draw call, creating the visual complexity of a downpour without sacrificing smooth 60fps performance.
-
-The technique works by defining a single geometry template—in this case, a thin cylinder—and then rendering multiple instances of it at different positions and with varying properties. This approach reduces the overhead of managing individual objects while maintaining the visual complexity needed for convincing precipitation effects:
+Lets start simple, we'll display create a sun and moon component that's just a sphere with a realistic texture wrapped around it. We'll give it a little rotation and some lighting. 
 
 ```javascript
-// Rain.js - React Three Fiber instanced rendering
+// Sun.js and Moon.js Component, a texture wrapped sphere
+import React, { useRef } from 'react';
+import { useFrame, useLoader } from '@react-three/fiber';
+import { Sphere } from '@react-three/drei';
+import * as THREE from 'three';
+
+const Sun = () => {
+  const sunRef = useRef();
+  
+  const sunTexture = useLoader(THREE.TextureLoader, '/textures/sun_2k.jpg');
+  
+  useFrame((state) => {
+    if (sunRef.current) {
+      sunRef.current.rotation.y = state.clock.getElapsedTime() * 0.1;
+    }
+  });
+
+  const sunMaterial = new THREE.MeshBasicMaterial({
+    map: sunTexture,
+  });
+
+  return (
+    <group position={[0, 4.5, 0]}>
+      <Sphere ref={sunRef} args={[2, 32, 32]} material={sunMaterial} />
+      
+      {/* Sun lighting */}
+      <pointLight position={[0, 0, 0]} intensity={2.5} color="#FFD700" distance={25} />
+    </group>
+  );
+};
+
+export default Sun;
+```
+I grabbed the CC0 texture from https://www.solarsystemscope.com/textures/ The moon component is essentially the same, I used https://commons.wikimedia.org/wiki/File:Moon_texture.jpg the texture here. The pointlight intensity is low because the majority of our lighting will come from our sky.
+
+### Rain: Instanced Cylinders
+
+Next, lets create a rain paticle effect. To keep things performant, we're going to use instancedMesh instead of creating a separate mesh component for each rain particle.  We'll render a single geometry (<cylinderGeometry>) multiple times with different transformations (position, rotation, scale).  Also, instead of creating a new THREE.Object3D for each particle in every frame, we'll reuse a single dummy object. This saves memory and prevents the overhead of creating and garbage collecting a large number of temporary objects within the animation loop. We'll also use the useMemo hook to create and initialize the particles array only once when the component mounts.
+
+```javascript
+// Rain.js - instanced rendering
 const Rain = ({ count = 1000 }) => {
   const meshRef = useRef();
   const dummy = useMemo(() => new THREE.Object3D(), []);
@@ -71,11 +107,11 @@ const Rain = ({ count = 1000 }) => {
 };
 ```
 
-The key to this implementation lies in the `useFrame` hook, which executes every render frame (typically 60 times per second). Each particle maintains its own state object containing position, speed, and other properties. When a particle reaches the ground level, it's immediately recycled to the top of the scene with a new random horizontal position, creating the illusion of continuous rainfall without constantly creating new objects.
+When a particle reaches the ground level, it's immediately recycled to the top of the scene with a new random horizontal position, creating the illusion of continuous rainfall without constantly creating new objects.
 
 ### Snow: Physics-Based Tumbling
 
-Snow transforms the scene into a winter wonderland where delicate crystalline particles dance through the air with mesmerizing unpredictability. Unlike rain's direct descent, each snowflake follows its own meandering path, swaying gently on invisible air currents while tumbling end-over-end in hypnotic spirals. Snow particles use a different movement pattern than rain, drifting sideways using sine wave calculations and rotating on multiple axes to simulate the chaotic beauty of natural snowfall:
+We'll use the same basic template for the snow effect but instead of the particles falling straight down we'll give it some drift. 
 
 ```javascript
 // Snow.js - Realistic drift and tumbling with time-based rotation
@@ -104,22 +140,23 @@ The horizontal drift uses `Math.sin(state.clock.elapsedTime + i)` where `state.c
 
 ### Storm System: Multi-Component Weather Events
 
-When storms roll in, the entire atmosphere transforms into a dramatic spectacle of nature's raw power. Dark, brooding clouds roll across the sky while torrential rain pounds the scene with increased intensity. Suddenly, brilliant flashes of lightning tear through the darkness, casting stark shadows and illuminating the storm clouds from within in bursts of ethereal blue-white light. Storm conditions require combining multiple weather effects simultaneously, orchestrating this meteorological symphony as a coordinated system:
+When a storm rolls in, I wanted to simulate dark brooding clouds and flashes of lightning.  This effect require combining multiple weather effects simultaneously.  We'll import our rain component, add some clouds and impliment a lightning effect with a pointLight that will simulate flashes of lighting coming from inside the clouds. 
 
 ```javascript
-// Storm.js - Simplified lightning system with storm clouds
+// Storm.js
 const Storm = () => {
+  const cloudsRef = useRef();
   const lightningLightRef = useRef();
   const lightningActive = useRef(false);
 
   useFrame((state) => {
-    // Simple lightning flash probability
+    // Lightning flash with ambient light
     if (Math.random() < 0.003 && !lightningActive.current) {
       lightningActive.current = true;
       
       if (lightningLightRef.current) {
         // Random X position for each flash
-        const randomX = (Math.random() - 0.5) * 10;
+        const randomX = (Math.random() - 0.5) * 10; // Range: -5 to 5
         lightningLightRef.current.position.x = randomX;
         
         // Single bright flash
@@ -133,27 +170,26 @@ const Storm = () => {
     }
   });
 
-  return (
+ return (
     <group>
-      {/* Multiple dark storm clouds */}
-      <DreiClouds material={THREE.MeshLambertMaterial}>
-        <Cloud
-          segments={60}
-          bounds={[12, 3, 3]}
-          volume={10}
-          color="#8A8A8A"
-          fade={100}
-          speed={0.2}
-          opacity={0.8}
-          position={[-3, 4, -2]}
-        />
+      <group ref={cloudsRef}>
+        <DreiClouds material={THREE.MeshLambertMaterial}>
+          <Cloud
+            segments={60}
+            bounds={[12, 3, 3]}
+            volume={10}
+            color="#8A8A8A"
+            fade={100}
+            speed={0.2}
+            opacity={0.8}
+            position={[-3, 4, -2]}
+          />
         {/* Additional cloud configurations... */}
       </DreiClouds>
       
       {/* Heavy rain - 1500 particles */}
       <Rain count={1500} />
       
-      {/* Lightning illumination - no bolt geometry */}
       <pointLight 
         ref={lightningLightRef}
         position={[0, 6, -5.5]}
@@ -170,262 +206,289 @@ const Storm = () => {
 
 The lightning system uses a simple ref-based cooldown mechanism to prevent constant flashing. When lightning triggers, it creates a single bright flash with random positioning. The system uses `setTimeout` to reset the light intensity after 400ms, creating a realistic lightning effect without complex multi-stage sequences.
 
-## API-Driven Logic: From Data to Visuals
+### Clouds: Drei Cloud
 
-The weather API integration transforms real meteorological data into 3D scene parameters. The WeatherAPI.com service provides detailed current conditions and forecasts that determine which visual effects to render and how to configure them:
+For weather types like cloudy, partly cloudy, overcast, foggy, rainy, snowy and mist we'll pull in our clouds coponent. I wanted the stormy component to have it's own clouds because they should retrun darker clouds than the other conditions above. The clouds component will simply display Drei cloulds and we'll pull it all together with the sun or moon component in the next section. 
 
 ```javascript
-// weatherService.js - API integration
+const Clouds = ({ intensity = 0.7, speed = 0.1, portalMode = false }) => {
+  // Determine cloud colors based on weather condition
+  const getCloudColors = () => {
+      return {
+        primary: '#FFFFFF',
+        secondary: '#F8F8F8',
+        tertiary: '#F0F0F0',
+        light: '#FAFAFA',
+        intensity: intensity
+      };
+  };
+
+  const colors = getCloudColors();
+  return (
+    <group>
+      <DreiClouds material={THREE.MeshLambertMaterial}>
+        {/* Large fluffy cloud cluster */}
+        <Cloud
+          segments={80}
+          bounds={[12, 4, 4]}
+          volume={15}
+          color={colors.primary}
+          fade={50}
+          speed={speed}
+          opacity={colors.intensity}
+          position={[-5, 4, -2]}
+        />
+        {/* Additional clouds... */}
+      </DreiClouds>
+    </group>
+  );
+};
+```
+
+## API-Driven Logic, Putting It All Together
+
+Now that we've built our weather components, we need a system to decide which ones to display based on real weather data. The WeatherAPI.com service provides detailed current conditions that we'll transform into our 3D scene parameters. The API gives us condition text like "Partly cloudy", "Thunderstorm", or "Light snow", but we need to convert these into our component types.
+
+```javascript
+// weatherService.js - Fetching real weather data
 const response = await axios.get(
   `${WEATHER_API_BASE}/forecast.json?key=${API_KEY}&q=${location}&days=3&aqi=no&alerts=no&tz=${Intl.DateTimeFormat().resolvedOptions().timeZone}`,
   { timeout: 10000 }
 );
 ```
 
-The API request includes timezone information to ensure accurate local time calculations for day/night cycles. The `days=3` parameter provides forecast data for the portal system, while `aqi=no&alerts=no` excludes unnecessary data to reduce payload size.
+The API request includes timezone information so we can accurately determine day/night for our Sun/Moon system. The `days=3` parameter grabs forecast data for our portal feature, while `aqi=no&alerts=no` keeps the payload lean by excluding data we don't need.
+
+### Converting API Conditions to Component Types
+
+The heart of our system is a simple parsing function that maps hundreds of possible weather descriptions to our manageable set of visual components:
 
 ```javascript
-// Smart condition parsing
+// weatherService.js - Converting weather text to renderable types
 export const getWeatherConditionType = (condition) => {
   const conditionLower = condition.toLowerCase();
-  
+
+  if (conditionLower.includes('sunny') || conditionLower.includes('clear')) {
+    return 'sunny';
+  }
   if (conditionLower.includes('thunder') || conditionLower.includes('storm')) {
     return 'stormy';
   }
+  if (conditionLower.includes('cloud') || conditionLower.includes('overcast')) {
+    return 'cloudy';
+  }
   if (conditionLower.includes('rain') || conditionLower.includes('drizzle')) {
-    return 'rainy';  
+    return 'rainy';
   }
   if (conditionLower.includes('snow') || conditionLower.includes('blizzard')) {
     return 'snowy';
   }
-  // ... additional conditions
+  // ... additional fog and mist conditions
   return 'cloudy';
 };
 ```
 
-The condition parsing function uses string matching to categorize weather descriptions from the API into renderable effect types. This mapping system allows the 3D scene to respond to hundreds of different weather descriptions using a manageable set of visual components.
+This string matching approach handles edge cases gracefully - whether the API returns "Light rain", "Heavy rain", or "Patchy light drizzle", they all map to our `rainy` type and trigger the appropriate 3D effects.
+
+### Conditional Component Rendering
+
+The magic happens in our `WeatherVisualization` component, where the parsed weather type determines exactly which 3D components to render:
 
 ```javascript
-// Scene3D.js - Conditional effect rendering
-{weatherCondition === 'rainy' && <Rain />}
-{weatherCondition === 'snowy' && <Snow />} 
-{weatherCondition === 'stormy' && <Storm />}
-{(weatherCondition === 'cloudy' || weatherCondition === 'overcast') && <Clouds />}
+// WeatherVisualization.js - Bringing weather data to life
+const renderWeatherEffect = () => {
+  if (weatherType === 'sunny') {
+    if (partlyCloudy) {
+      return (
+        <>
+          {isNight ? <Moon /> : <Sun />}
+          <Clouds intensity={0.5} speed={0.1} />
+        </>
+      );
+    }
+    return isNight ? <Moon /> : <Sun />;
+  } else if (weatherType === 'rainy') {
+    return (
+      <>
+        <Clouds intensity={0.8} speed={0.15} />
+        <Rain count={800} />
+      </>
+    );
+  } else if (weatherType === 'stormy') {
+    return <Storm />; // Includes its own clouds, rain, and lightning
+  }
+  // ... additional weather types
+};
 ```
 
-This conditional rendering approach ensures only the necessary particle systems load, optimizing performance by avoiding unused effect calculations.
+This conditional system ensures we only load the particle systems we actually need. A sunny day renders just our Sun component, while a storm loads our complete Storm system with heavy rain, dark clouds, and lightning effects. Each weather type gets its own combination of the components we built earlier, creating distinct visual experiences that match the real weather conditions.
+
 
 ## Dynamic Time-of-Day System
 
-As the earth turns, our virtual world transforms through the poetry of light and shadow. Dawn breaks with deep purples and roses painting the horizon, gradually giving way to the brilliant azure of midday skies. Dusk arrives in waves of amber and gold, before night descends with its star-studded velvet canopy. The lighting system analyzes the local time from weather data to determine appropriate atmospheric conditions, seamlessly transitioning between four distinct temporal moods that each require different lighting configurations and sky positioning:
+Weather isn't just about conditions - it's also about timing. Our weather components need to know whether to show the sun or moon, and we need to configure Drei's Sky component to render the appropriate atmospheric colors for the current time of day. Fortunately, our WeatherAPI response already includes the local time for any location, so we can extract that to drive our day/night logic.
+
+### Extracting Time from Weather Data
+
+The API provides local time in a simple format that we can parse to determine the current period:
 
 ```javascript
-// Time-based lighting calculation
+// Scene3D.js - Parsing time from weather API data
 const getTimeOfDay = () => {
   if (!weatherData?.location?.localtime) return 'day';
   const localTime = weatherData.location.localtime;
   const currentHour = new Date(localTime).getHours();
-  
+
   if (currentHour >= 19 || currentHour <= 6) return 'night';
   if (currentHour >= 6 && currentHour < 8) return 'dawn';
   if (currentHour >= 17 && currentHour < 19) return 'dusk';
   return 'day';
 };
-
-```javascript
-// Dynamic sky positioning - parameters are configured inline
-sunPosition={(() => {
-  if (timeOfDay === 'dawn') {
-    return [100, -5, 100]; // Sun below horizon for darker dawn
-  } else if (timeOfDay === 'dusk') {
-    return [-100, -5, 100]; // Sun below horizon for darker dusk
-  } else { // day
-    return [100, 20, 100]; // Keep existing day value
-  }
-})()}
-inclination={(() => {
-  if (timeOfDay === 'dawn' || timeOfDay === 'dusk') {
-    return 0.6; // Medium inclination for dawn/dusk
-  } else { // day
-    return 0.9; // Keep existing day value
-  }
-})()}
-turbidity={(() => {
-  if (timeOfDay === 'dawn' || timeOfDay === 'dusk') {
-    return 8; // Higher turbidity for atmospheric scattering
-  } else { // day
-    return 2; // Keep existing day value
-  }
-})()}
 ```
 
-The sky parameters control Three.js Sky component settings. The `sunPosition` array determines where the sun appears relative to the scene, while `turbidity` affects atmospheric haze. Lower turbidity values create clearer skies, while higher values simulate hazier conditions. The `inclination` and `azimuth` values fine-tune the sun's apparent position for realistic sky gradients.
+This gives us four distinct time periods, each requiring different lighting and sky configurations. Now we can use these periods to configure Drei's Sky component, which handles atmospheric scattering and generates realistic sky colors automatically.
 
-The background color system provides additional atmospheric depth:
+### Dynamic Sky Configuration
+
+Drei's Sky component is fantastic because it simulates actual atmospheric physics - we just need to position the sun correctly and adjust atmospheric parameters for each time period:
 
 ```javascript
-const getBackgroundColor = () => {
-  if (isNight) return '#0A1428';
-  
-  // Dawn/dusk specific colors
-  if (timeOfDay === 'dawn') return '#2D1B3D';
-  if (timeOfDay === 'dusk') return '#3D2914';
-  
-  if (!weatherData?.current?.condition) return '#0D7FDB';
-  const condition = weatherData.current.condition.text.toLowerCase();
-  
-  if (condition.includes('storm')) return '#263238';
-  if (condition.includes('rain') || condition.includes('overcast')) return '#546E7A';
-  if (condition.includes('cloudy')) return '#1E88E5';
-  return '#0D7FDB';
-};
+// Scene3D.js - Time-responsive Sky configuration
+{timeOfDay !== 'night' && (
+  <Sky
+    sunPosition={(() => {
+      if (timeOfDay === 'dawn') {
+        return [100, -5, 100]; // Sun below horizon for darker dawn colors
+      } else if (timeOfDay === 'dusk') {
+        return [-100, -5, 100]; // Sun below horizon for sunset colors
+      } else { // day
+        return [100, 20, 100]; // High sun position for bright daylight
+      }
+    })()}
+    inclination={(() => {
+      if (timeOfDay === 'dawn' || timeOfDay === 'dusk') {
+        return 0.6; // Medium inclination for transitional periods
+      } else { // day
+        return 0.9; // High inclination for clear daytime sky
+      }
+    })()}
+    turbidity={(() => {
+      if (timeOfDay === 'dawn' || timeOfDay === 'dusk') {
+        return 8; // Higher turbidity creates warm sunrise/sunset colors
+      } else { // day
+        return 2; // Lower turbidity for clear blue sky
+      }
+    })()}
+  />
+)}
 ```
 
-These hex color values represent different atmospheric tints that enhance the time-of-day illusion. Storm conditions override normal day colors with darker tones to emphasize dramatic weather conditions.
+The magic happens in the positioning - during dawn and dusk, we place the sun just below the horizon (`-5` Y position) so Drei's Sky component generates those warm orange and pink colors we associate with sunrise and sunset. The turbidity parameter controls atmospheric scattering, with higher values creating more dramatic color effects during transitional periods.
 
-### Nighttime Stellar Environment
+### Nighttime: Simple Black Background + Stars
 
-When darkness falls, the scene transforms with a breathtaking starfield that brings the night sky to life:
+For nighttime, I made a deliberate choice to skip Drei's Sky component entirely and use a simple black background instead. The Sky component is computationally expensive, and for nighttime scenes, a pure black backdrop actually looks better and performs significantly faster. We complement this with Drei's Stars component for that authentic nighttime atmosphere:
 
 ```javascript
-// Scene3D.js - Conditional star rendering for nighttime atmosphere
-{isNight && <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />}
+// Scene3D.js - Efficient nighttime rendering
+{!portalMode && isNight && <SceneBackground backgroundColor={'#000000'} />}
+
+{/* Stars create the nighttime atmosphere */}
+{isNight && (
+  <Stars
+    radius={100}
+    depth={50}
+    count={5000}
+    factor={4}
+    saturation={0}
+    fade
+    speed={1}
+  />
+)}
 ```
 
-The star system creates a realistic nocturnal atmosphere with:
-- **5,000 individual stars** scattered across a 100-unit radius sphere
-- **Depth layering** (50 units) for realistic distance variation
-- **Desaturated appearance** (`saturation={0}`) for authentic nighttime visibility
-- **Gentle movement** (`speed={1}`) that simulates the subtle motion of celestial bodies
-- **Fade effects** that create natural brightness variation across the stellar field
+Drei's Stars component creates 5,000 individual stars scattered across a 100-unit sphere with realistic depth variation. The `saturation={0}` keeps them properly desaturated for authentic nighttime visibility, while the gentle `speed={1}` creates subtle movement that simulates the natural motion of celestial bodies. Stars only appear during nighttime hours (7 PM to 6 AM) and automatically disappear at dawn, creating a smooth transition back to Drei's daytime Sky component.
 
-Stars only appear during nighttime hours (7 PM to 6 AM), automatically disappearing at dawn to maintain the realistic day/night cycle. This creates an immersive transition from the sun-drenched daytime environment to a serene, star-filled night sky.
+This approach gives us four distinct atmospheric moods - bright daylight, warm dawn colors, golden dusk tones, and star-filled nights - all driven automatically by the real local time from our weather data.
 
-## Ultimate Lens Flare Implementation
+## Forecast Portals: Windows Into Tomorrow's Weather
 
-The crown jewel of our atmospheric effects is the lens flare system—a dazzling display of optical phenomena that brings cinematic authenticity to our 3D world. When the sun emerges through parting clouds, brilliant streaks of light cascade across the viewport, complete with rainbow-tinted ghost reflections, ethereal halos, and those characteristic hexagonal artifacts that make digital sunlight feel tangibly real. The lens flare system uses the R3F-Ultimate-Lens-Flare library (https://github.com/ektogamat/R3F-Ultimate-Lens-Flare) installed manually following the repository's instructions, implementing sophisticated 3D-to-screen projection with intelligent occlusion detection and mode-specific configurations:
+Like any good weather app, we don't want to just show current conditions but also what's coming next. Our API returns a three-day forecast that we transform into three interactive portals hovering in the 3D scene, each one showing a preview of that day's weather conditions. Click on a portal and you're transported into that day's atmospheric environment.
+
+### Building Portals with MeshPortalMaterial
+
+The portals use Drei's `MeshPortalMaterial`, which renders a complete 3D scene to a texture that gets mapped onto a plane. Each portal becomes a window into its own weather world:
 
 ```javascript
-// Scene3D.js - Dual-mode lens flare configuration
-const PostProcessingEffects = ({ showLensFlare, isPortalMode = false }) => {
-  // Main scene configuration - positioned at sun location
-  const mainSceneDefaults = {
-    positionX: 0,
-    positionY: 5, // Aligned with sun at [0, 4.5, 0]
-    positionZ: 0,
-    opacity: 1.00,
-    glareSize: 1.68,      // Large prominent glare
-    starPoints: 2,        // Minimal star pattern
-    animated: false,      // Static lens flare
-    anamorphic: false,    // Circular not stretched
-    flareSpeed: 0.10,
-    flareShape: 0.81,     // Rounded flare elements
-    flareSize: 1.68,      // Large secondary flares
-    secondaryGhosts: true, // Enable ghost reflections
-    ghostScale: 0.03,     // Subtle ghost effects
-    aditionalStreaks: true, // Lens streak artifacts
-    starBurst: false,     // No star burst pattern
-    haloScale: 3.88       // Large surrounding halo
-  };
+// ForecastPortals.js - Creating interactive weather portals
+const ForecastPortal = ({ position, dayData, index, onEnter }) => {
+  const materialRef = useRef();
 
-  // Portal mode configuration - optimized for preview windows
-  const portalModeDefaults = {
-    ...mainSceneDefaults,
-    positionY: 3,         // Lower position for portal view
-  };
-
-  const lensFlareSettings = isPortalMode ? portalModeDefaults : mainSceneDefaults;
+  // Transform forecast API data into our weather component format
+  const portalWeatherData = useMemo(() => ({
+    current: {
+      temp_f: dayData.day.maxtemp_f,
+      condition: dayData.day.condition,
+      is_day: 1, // Force daytime for consistent portal lighting
+      humidity: dayData.day.avghumidity,
+      wind_mph: dayData.day.maxwind_mph,
+    },
+    location: {
+      localtime: dayData.date + 'T12:00' // Set to noon for optimal lighting
+    }
+  }), [dayData]);
 
   return (
-    <EffectComposer>
-      <UltimateLensFlare
-        position={[lensFlareSettings.positionX, lensFlareSettings.positionY, lensFlareSettings.positionZ]}
-        opacity={lensFlareSettings.opacity}
-        glareSize={lensFlareSettings.glareSize}
-        starPoints={lensFlareSettings.starPoints}
-        animated={lensFlareSettings.animated}
-        anamorphic={lensFlareSettings.anamorphic}
-        flareSpeed={lensFlareSettings.flareSpeed}
-        flareShape={lensFlareSettings.flareShape}
-        flareSize={lensFlareSettings.flareSize}
-        secondaryGhosts={lensFlareSettings.secondaryGhosts}
-        ghostScale={lensFlareSettings.ghostScale}
-        aditionalStreaks={lensFlareSettings.aditionalStreaks}
-        starBurst={lensFlareSettings.starBurst}
-        haloScale={lensFlareSettings.haloScale}
-      />
-      <Bloom intensity={bloomSettings.bloomIntensity} threshold={bloomSettings.bloomThreshold} />
-    </EffectComposer>
+    <group position={position}>
+      <mesh onClick={onEnter}>
+        <roundedPlaneGeometry args={[2, 2.5, 0.15]} />
+        <MeshPortalMaterial
+          ref={materialRef}
+          blur={0}
+          resolution={256}
+          worldUnits={false}
+        >
+          {/* Each portal renders a complete weather scene */}
+          <color attach="background" args={['#87CEEB']} />
+          <ambientLight intensity={0.4} />
+          <directionalLight position={[10, 10, 5]} intensity={1} />
+          <WeatherVisualization
+            weatherData={portalWeatherData}
+            isLoading={false}
+            portalMode={true}
+          />
+        </MeshPortalMaterial>
+      </mesh>
+
+      {/* Weather info overlay */}
+      <Text position={[-0.8, 1.0, 0.1]} fontSize={0.18} color="#FFFFFF">
+        {formatDay(dayData.date, index)}
+      </Text>
+      <Text position={[0.8, 1.0, 0.1]} fontSize={0.15} color="#FFFFFF">
+        {Math.round(dayData.day.maxtemp_f)}° / {Math.round(dayData.day.mintemp_f)}°
+      </Text>
+      <Text position={[-0.8, -1.0, 0.1]} fontSize={0.13} color="#FFFFFF">
+        {dayData.day.condition.text}
+      </Text>
+    </group>
   );
 };
 ```
 
-### Lens Flare Parameter Optimization
+The `roundedPlaneGeometry` from the maath library gives our portals those smooth, organic edges instead of sharp rectangles. The `[2, 2.5, 0.15]` parameters create a 2×2.5 unit portal with 0.15 radius corners - just enough rounding to feel modern without looking like a button.
 
-The lens flare configuration was carefully tuned through iterative development using Leva controls, allowing real-time adjustment of parameters until achieving the desired photorealistic effect:
+### Interactive States and Animations
 
-- **Large Glare Size (1.68)**: Creates a prominent central lens flare that's clearly visible against the bright sun
-- **Minimal Star Points (2)**: Reduces visual noise while maintaining subtle lens characteristics  
-- **Static Animation**: Prevents distracting movement that could interfere with weather visualization
-- **High Halo Scale (3.88)**: Generates a large atmospheric glow around the light source
-- **Subtle Ghost Scale (0.03)**: Adds realistic lens reflection artifacts without overwhelming the scene
-- **Mode-Specific Positioning**: Main scene uses Y=5 to align with the sun sphere at [0, 4.5, 0], while portal mode uses Y=3 for optimal viewing in the preview windows
-
-### Weather-Responsive Visibility System
-
-The lens flare system intelligently responds to both weather conditions and time-of-day factors, ensuring the effect only appears when meteorologically appropriate:
+Portals aren't just static windows - they respond to user interaction with smooth state transitions. The system tracks three states: inactive, active (hovered), and fullscreen (clicked):
 
 ```javascript
-// Scene3D.js - Smart lens flare visibility logic
-const useLensFlareVisibility = (weatherData, isNight) => {
-  return React.useMemo(() => {
-    if (isNight || !weatherData) return false;
-    return shouldShowSun(weatherData);
-  }, [isNight, weatherData]);
-};
-
-// weatherService.js - Weather condition analysis
-export const shouldShowSun = (weatherData) => {
-  if (!weatherData?.current?.condition) return true;
-  const condition = weatherData.current.condition.text.toLowerCase();
-  
-  // Hide lens flare during weather that obscures the sun
-  if (condition.includes('overcast') || 
-      condition.includes('rain') || 
-      condition.includes('storm') || 
-      condition.includes('snow')) {
-    return false;
-  }
-  
-  return true; // Show for clear, sunny, partly cloudy conditions
-};
-
-// Conditional rendering based on visibility logic
-if (!showLensFlare) return null;
-```
-
-This creates realistic behavior where:
-- **Daytime clear weather** → Full lens flare visibility
-- **Overcast/rainy conditions** → Lens flare hidden (sun obscured by clouds)
-- **Nighttime** → Lens flare disabled (no sun present)
-- **Storm conditions** → Lens flare hidden (sun blocked by storm clouds)
-
-The lens flare system provides consistent, weather-appropriate visual effects that enhance the immersive quality of the 3D weather environment without complex occlusion calculations that could impact performance.
-
-## MeshPortalMaterial: Seamless World Transitions
-
-Imagine peering through magical windows that reveal future weather conditions in crystalline clarity. The forecast portals hover in space like luminous glass panels, each one containing a living diorama of tomorrow's atmospheric conditions. Click on a portal showing scattered clouds, and you're instantly transported into that forecasted day, surrounded by the gentle drift of cumulus formations and bathed in warm sunlight. These portals demonstrate advanced render-to-texture techniques using `@react-three/drei`'s `MeshPortalMaterial`:
-
-```javascript
-// ForecastPortals.js - Portal with responsive scaling and state management
-const ForecastPortal = ({ 
-  position, dayData, index, isActive, isFullscreen, onEnter, onExit 
-}) => {
+// ForecastPortals.js - State management and blend animations
+const ForecastPortal = ({ position, dayData, isActive, isFullscreen, onEnter }) => {
   const materialRef = useRef();
 
-  useFrame((state, delta) => {
+  useFrame(() => {
     if (materialRef.current) {
-      // Animate portal blend based on active state
+      // Smooth blend animation based on interaction state
       const targetBlend = isFullscreen ? 1 : (isActive ? 0.5 : 0);
       materialRef.current.blend = THREE.MathUtils.lerp(
         materialRef.current.blend || 0,
@@ -435,60 +498,16 @@ const ForecastPortal = ({
     }
   });
 
-  // Create portal scene with forecast weather data
-  const portalWeatherData = useMemo(() => ({
-    current: {
-      temp_f: dayData.day.maxtemp_f,
-      condition: dayData.day.condition,
-      is_day: 1,
-      humidity: dayData.day.avghumidity,
-      wind_mph: dayData.day.maxwind_mph,
-    },
-    location: {
-      localtime: dayData.date + 'T12:00'
-    }
-  }), [dayData]);
-
-  // Portal content with proper scene structure
-  const PortalScene = () => (
-    <>
-      <color attach="background" args={['#87CEEB']} />
-      <ambientLight intensity={0.4} />
-      <directionalLight position={[10, 10, 5]} intensity={1} />
-      <WeatherVisualization 
-        weatherData={portalWeatherData} 
-        isLoading={false}
-        portalMode={true}
-      />
-      <Environment preset="city" />
-    </>
-  );
-
+  // Portal content and UI elements hidden in fullscreen mode
   return (
     <group position={position}>
-      <mesh onClick={onEnter}>
-        <roundedPlaneGeometry args={[2, 2.5, 0.15]} />
-        <MeshPortalMaterial 
-          ref={materialRef}
-          blur={0}
-          resolution={256}
-          worldUnits={false}
-        >
-          <PortalScene />
-        </MeshPortalMaterial>
-      </mesh>
+      {/* Portal mesh */}
 
-      {/* UI elements with responsive text positioning */}
       {!isFullscreen && (
         <>
+          {/* Temperature and condition text only show in preview mode */}
           <Text position={[-0.8, 1.0, 0.1]} fontSize={0.18} color="#FFFFFF">
             {formatDay(dayData.date, index)}
-          </Text>
-          <Text position={[0.8, 1.0, 0.1]} fontSize={0.15} color="#FFFFFF">
-            {Math.round(dayData.day.maxtemp_f)}° / {Math.round(dayData.day.mintemp_f)}°
-          </Text>
-          <Text position={[-0.8, -1.0, 0.1]} fontSize={0.13} color="#FFFFFF">
-            {dayData.day.condition.text}
           </Text>
         </>
       )}
@@ -497,433 +516,201 @@ const ForecastPortal = ({
 };
 ```
 
-Each portal renders a complete 3D scene to a 256x256 texture with its own weather data transformation. The portals feature responsive scaling for mobile devices and sophisticated state management. The smooth, rounded edges of each portal are achieved using `roundedPlaneGeometry` from the maath library, which provides mathematically precise rounded rectangles that feel organic and modern compared to sharp-edged planes. When you click a portal, the system transitions through multiple blend states: 0 (inactive), 0.5 (active preview), and 1 (fullscreen). The fullscreen mode hides UI text overlays and provides an immersive view of the forecast day's weather conditions.
+The `blend` property controls how much the portal takes over your view. At 0 (inactive), you see the portal as a window. At 0.5 (hovered), it starts to immerse you. At 1 (fullscreen), you're completely inside that day's weather environment. The `THREE.MathUtils.lerp` creates buttery smooth transitions between these states.
 
-## Smart Caching and Rate Limiting
+### Fullscreen Portal Experience
 
-To ensure optimal performance and responsible API usage, the weather service implements a sophisticated multi-layer caching and rate limiting system that balances user experience with resource conservation.
-
-### In-Memory Response Caching
-
-The system uses a Map-based cache to store weather responses for 10 minutes, dramatically reducing API calls for repeated location requests:
+When you click a portal, the magic really happens. The system hides all UI text overlays and gradually blends the portal's weather scene to fill your entire view. Instead of looking at tomorrow's weather through a window, you're standing inside it:
 
 ```javascript
-// api/weather.js - Intelligent caching system
-const cache = new Map();
-const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
-
-const cacheKey = `weather:${location.toLowerCase()}`;
-const cachedData = cache.get(cacheKey);
-
-if (cachedData && Date.now() - cachedData.timestamp < CACHE_DURATION) {
-  console.log(`Cache hit for location: ${location}`);
-  return res.json({
-    ...cachedData.data,
-    cached: true,
-    cacheAge: Math.round((Date.now() - cachedData.timestamp) / 1000)
-  });
-}
-```
-
-This approach provides several benefits:
-- **Instant responses** for recently queried locations
-- **Reduced API costs** by minimizing redundant requests
-- **Improved reliability** during API service interruptions
-- **Cache age indicators** for debugging and transparency
-
-### User-Based Rate Limiting
-
-The rate limiting system tracks requests per IP address with a sliding window approach, preventing abuse while maintaining a smooth user experience:
-
-```javascript
-// api/weather.js - Sliding window rate limiting
-const rateLimitMap = new Map();
-const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour
-const MAX_REQUESTS_PER_HOUR = 20;
-
-function isRateLimited(ip) {
-  const now = Date.now();
-  const userRequests = rateLimitMap.get(ip) || [];
-  
-  // Remove expired requests from sliding window
-  const validRequests = userRequests.filter(
-    timestamp => now - timestamp < RATE_LIMIT_WINDOW
-  );
-  
-  if (validRequests.length >= MAX_REQUESTS_PER_HOUR) {
-    return true;
+// Scene3D.js - Fullscreen portal handling
+const handlePortalStateChange = (isPortalActive, dayData) => {
+  setPortalMode(isPortalActive);
+  if (isPortalActive && dayData) {
+    // Create immersive weather environment for the selected day
+    const portalData = {
+      current: {
+        temp_f: dayData.day.maxtemp_f,
+        condition: dayData.day.condition,
+        is_day: 1,
+        humidity: dayData.day.avghumidity,
+      },
+      location: { localtime: dayData.date + 'T12:00' }
+    };
+    setPortalWeatherData(portalData);
   }
-  
-  // Add current request to tracking
-  validRequests.push(now);
-  rateLimitMap.set(ip, validRequests);
-  return false;
-}
-```
-
-When users exceed the rate limit, the system gracefully serves realistic demo data instead of blocking access entirely, maintaining the user experience while protecting API quotas.
-
-### Graceful Degradation Strategy
-
-The service implements multiple fallback layers to handle different failure scenarios:
-
-```javascript
-// weatherService.js - Multi-tier error handling
-if (error.response?.status === 429) {
-  // User exceeded 20 requests/hour - serve demo data
-  console.log('Too many requests');
-  return getDemoWeatherData(location);
-}
-
-if (!error.response || error.response?.status >= 500) {
-  // Vercel service unavailable - serve demo data
-  console.log('Vercel service unavailable, using demo data');
-  return getDemoWeatherData(location);
-}
-```
-
-This strategy ensures the application remains functional even during:
-- **API service outages** - Users see demo weather data
-- **Rate limit violations** - Smooth transition to fallback content
-- **Network connectivity issues** - Offline-capable demo mode
-- **Vercel function limits** - Automatic degradation handling
-
-### Demo Data with Time Awareness
-
-The fallback data uses mostly static values but includes basic time awareness for day/night cycles:
-
-```javascript
-// Demo weather with time-aware day/night detection
-const demoWeatherData = {
-  current: {
-    temp_f: 72, // Static temperature
-    is_day: new Date().getHours() >= 6 && new Date().getHours() <= 18 ? 1 : 0,
-    condition: {
-      text: "Partly cloudy", // Static condition
-      icon: "//cdn.weatherapi.com/weather/64x64/day/116.png"
-    }
-  },
-  rateLimited: true, // Indicates fallback data to user
-  cached: false
 };
 ```
 
-While the weather conditions remain constant, the day/night detection ensures the 3D scene's lighting system responds appropriately even when using fallback content.
+In fullscreen mode, the portal weather data drives the entire scene - the Sky component, lighting, and all weather effects now represent that forecasted day. You can orbit around inside tomorrow's storm or bask in the gentle sunlight of the day after. When you exit (click outside the portal), the system smoothly transitions back to the current weather conditions.
+
+The key insight is that each portal runs our same `WeatherVisualization` component but with forecast data instead of current conditions. The `portalMode={true}` prop optimizes the components for smaller render targets - fewer particles, simpler clouds, but the same conditional logic we built earlier.
+
+Now that we've introduced portals, we need to update our weather components to support this optimization. Going back to our conditional rendering examples, we add the `portalMode` prop:
+
+```javascript
+// WeatherVisualization.js - Updated with portal support
+if (weatherType === 'rainy') {
+  return (
+    <>
+      <Clouds intensity={0.8} speed={0.15} portalMode={portalMode} />
+      <Rain count={portalMode ? 100 : 800} />
+    </>
+  );
+} else if (weatherType === 'snowy') {
+  return (
+    <>
+      <Clouds intensity={0.6} speed={0.05} portalMode={portalMode} />
+      <Snow count={portalMode ? 50 : 400} />
+    </>
+  );
+}
+```
+
+And our Clouds component gets updated to render fewer, simpler clouds in portal mode:
+
+```javascript
+// Clouds.js - Portal optimization
+const Clouds = ({ intensity = 0.7, speed = 0.1, portalMode = false }) => {
+  if (portalMode) {
+    return (
+      <DreiClouds material={THREE.MeshLambertMaterial}>
+        {/* Only 2 centered clouds for portal preview */}
+        <Cloud segments={40} bounds={[8, 3, 3]} volume={8} position={[0, 4, -2]} />
+        <Cloud segments={35} bounds={[6, 2.5, 2.5]} volume={6} position={[2, 3, -3]} />
+      </DreiClouds>
+    );
+  }
+  // Full cloud system for main scene (6+ detailed clouds)
+  return <group>{/* ... full cloud configuration ... */}</group>;
+};
+```
+
+This dramatically reduces both particle counts (87.5% fewer rain particles) and cloud complexity (67% reduction from 6 detailed clouds to 2 centered clouds), ensuring smooth performance when multiple portals show weather effects simultaneously.
+
+### Integration with Scene3D
+
+The portals are positioned and managed in our main `Scene3D` component, where they complement the current weather visualization:
+
+```javascript
+// Scene3D.js - Portal integration
+<>
+  {/* Current weather in the main scene */}
+  <WeatherVisualization
+    weatherData={weatherData}
+    isLoading={isLoading}
+  />
+
+  {/* Three-day forecast portals */}
+  <ForecastPortals
+    weatherData={weatherData}
+    isLoading={isLoading}
+    onPortalStateChange={handlePortalStateChange}
+  />
+</>
+```
+
+When you click a portal, the entire scene transitions to fullscreen mode showing that day's weather in complete detail. The portal system tracks active states and handles smooth transitions between preview and immersive modes, creating a seamless way to explore future weather conditions alongside the current atmospheric environment.
+
+The portals transform static forecast numbers into explorable 3D environments - instead of reading "Tomorrow: 75°, Partly Cloudy", you see and feel the gentle drift of cumulus clouds with warm sunlight filtering through.
+
+
+
+
+
+
+## Adding Cinematic Lens Flares
+
+Our Sun component looks great, but to really make it feel cinematic, I wanted to implement a subtle lens flare effect. For this, I'm using the R3F-Ultimate-Lens-Flare library (https://git hub.com/ektogamat/R3F-Ultimate-Lens-Flare), which I installed manually following the repository's instructions. While lens flares typically work best with distant sun objects rather than our close-up approach, I think it adds a nice cinematic touch to the scene.
+
+### Implementing Weather-Responsive Lens Flares
+
+The lens flare system needs to be smart about when to appear. Just like our weather components, it should only show when it makes meteorological sense:
+
+```javascript
+// Scene3D.js - Conditional lens flare rendering
+const PostProcessingEffects = ({ showLensFlare }) => {
+  if (!showLensFlare) return null;
+
+  return (
+    <EffectComposer>
+      <UltimateLensFlare
+        position={[0, 5, 0]} // Positioned near our Sun component at [0, 4.5, 0]
+        opacity={1.00}
+        glareSize={1.68}
+        starPoints={2}
+        animated={false}
+        flareShape={0.81}
+        flareSize={1.68}
+        secondaryGhosts={true}
+        ghostScale={0.03}
+        aditionalStreaks={true}
+        haloScale={3.88}
+      />
+      <Bloom intensity={0.3} threshold={0.9} />
+    </EffectComposer>
+  );
+};
+```
+
+The key parameters create a realistic lens flare effect: `glareSize` and `flareSize` both at 1.68 give prominent but not overwhelming flares, while `ghostScale={0.03}` adds subtle lens reflection artifacts. The `haloScale={3.88}` creates that large atmospheric glow around the sun.
+
+### Smart Visibility Logic
+
+The lens flare connects to our weather system through a visibility function that determines when the sun should be visible:
+
+```javascript
+// weatherService.js - When should we show lens flares?
+export const shouldShowSun = (weatherData) => {
+  if (!weatherData?.current?.condition) return true;
+  const condition = weatherData.current.condition.text.toLowerCase();
+
+  // Hide lens flare when weather obscures the sun
+  if (condition.includes('overcast') ||
+      condition.includes('rain') ||
+      condition.includes('storm') ||
+      condition.includes('snow')) {
+    return false;
+  }
+
+  return true; // Show for clear, sunny, partly cloudy conditions
+};
+
+// Scene3D.js - Combining weather and time conditions
+const showLensFlare = useMemo(() => {
+  if (isNight || !weatherData) return false;
+  return shouldShowSun(weatherData);
+}, [isNight, weatherData]);
+```
+
+This creates realistic behavior where lens flares only appear during daytime clear weather. During storms or overcast conditions, the sun (and its lens flare) gets hidden by clouds, just like in real life.
+
+### Portal Integration
+
+The lens flare system also adapts to our portal system. When portals are active, we use different positioning to ensure the effect looks good in both the main scene and within portal previews:
+
+```javascript
+// Scene3D.js - Portal-aware lens flare positioning
+<PostProcessingEffects
+  showLensFlare={portalMode ? showPortalLensFlare : showLensFlare}
+  isPortalMode={portalMode}
+/>
+```
+
+The lens flare becomes another layer of our weather-responsive system, automatically appearing and disappearing based on real weather conditions and time of day, making the sun feel like a proper light source rather than just a textured sphere.
+
+
 
 ## Performance Optimizations
 
-### Instanced Rendering
-All particle effects use `InstancedMesh` to render thousands of particles in single draw calls:
+With all our 3D weather components working together, performance becomes crucial - especially on mobile devices. We're rendering thousands of particles, multiple cloud systems, and interactive portals simultaneously. The optimization strategy uses several techniques we've mentioned throughout this article.
+
+### Core Rendering Optimizations
+
+As mentioned above, all our particle systems use **instanced rendering** to draw thousands of raindrops or snowflakes in single GPU calls. **Conditional rendering** ensures we only load the weather effects we actually need - no rain particles during sunny weather, no lens flares during storms. And **memoization** prevents expensive calculations from running on every frame:
 
 ```javascript
-// Optimized particle rendering
-const instancedMesh = useRef();
-const matrix = new THREE.Matrix4();
-
-useFrame(() => {
-  for (let i = 0; i < particleCount; i++) {
-    // Update particle logic
-    updateParticle(particles[i]);
-    
-    // Set matrix for this instance
-    matrix.setPosition(
-      particles[i].position.x,
-      particles[i].position.y, 
-      particles[i].position.z
-    );
-    instancedMesh.current.setMatrixAt(i, matrix);
-  }
-  instancedMesh.current.instanceMatrix.needsUpdate = true;
-});
-```
-
-### Conditional Rendering
-Effects only render when weather conditions require them, reducing GPU load:
-
-```javascript
-// WeatherVisualization.js - Actual conditional rendering logic
-const renderWeatherEffect = () => {
-  const partlyCloudy = isPartlyCloudy(currentCondition);
-  
-  if (weatherType === 'sunny') {
-    if (partlyCloudy) {
-      return (
-        <>
-          {isNight ? <Moon /> : <Sun />}
-          <Clouds intensity={0.5} speed={0.1} isPartlyCloudy={true} portalMode={portalMode} />
-        </>
-      );
-    }
-    return isNight ? <Moon /> : <Sun />;
-  } else if (weatherType === 'cloudy') {
-    if (partlyCloudy) {
-      return (
-        <>
-          {isNight ? <Moon /> : <Sun />}
-          <Clouds intensity={0.6} speed={0.1} isPartlyCloudy={true} portalMode={portalMode} />
-        </>
-      );
-    }
-    return (
-      <Clouds intensity={0.8} speed={0.1} isPartlyCloudy={false} portalMode={portalMode} />
-    );
-  } else if (weatherType === 'rainy') {
-    return (
-      <>
-        <Clouds intensity={0.8} speed={0.15} portalMode={portalMode} />
-        <Rain count={portalMode ? 100 : 800} />
-      </>
-    );
-  } else if (weatherType === 'snowy') {
-    return (
-      <>
-        <Clouds intensity={0.6} speed={0.05} portalMode={portalMode} />
-        <Snow count={portalMode ? 50 : 400} />
-      </>
-    );
-  } else if (weatherType === 'stormy') {
-    return <Storm />;
-  } else if (weatherType === 'foggy') {
-    return <Clouds intensity={0.9} speed={0.05} portalMode={portalMode} />;
-  } else {
-    if (partlyCloudy) {
-      return (
-        <>
-          {isNight ? <Moon /> : <Sun />}
-          <Clouds intensity={0.5} speed={0.1} isPartlyCloudy={true} portalMode={portalMode} />
-        </>
-      );
-    }
-    return isNight ? <Moon /> : <Sun />;
-  }
-};
-```
-
-### Memoization
-Heavy calculations are memoized to prevent unnecessary recalculations:
-
-```javascript
-const skyParams = useMemo(() => getSkyParameters(timeOfDay), [timeOfDay]);
-const lightingConfig = useMemo(() => getLightingConfig(condition, timeOfDay), 
-  [condition, timeOfDay]);
-```
-
-## Mobile Responsiveness and Optimizations
-
-### Viewport and Performance Adaptations
-
-The system detects mobile devices using viewport width and applies comprehensive optimizations for smaller screens and lower-powered GPUs:
-
-```javascript
-// Responsive scaling and optimization
-const isMobile = viewport.width < 6;
-const scale = isMobile ? 0.7 : 1;
-const spacing = isMobile ? 2.2 : 3;
-```
-
-The portal scaling reduces to 70% on mobile devices to fit smaller screens. The spacing between portals decreases from 3 units to 2.2 units on mobile to prevent the forecast portals from extending beyond the screen boundaries.
-
-### Mobile Viewport Height Fixes
-
-Mobile browsers present unique challenges with dynamic viewport heights due to address bars and UI elements. The application implements comprehensive mobile viewport handling:
-
-```css
-/* App.css - Dynamic viewport height support */
-body {
-  min-height: 100vh;
-  min-height: 100dvh; /* Dynamic viewport height for mobile */
-  overflow: hidden;
-}
-
-html, #root {
-  height: 100%;
-  height: 100dvh; /* Dynamic viewport height for mobile */
-}
-```
-
-```html
-<!-- index.html - Mobile viewport meta tag -->
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-```
-
-```javascript
-// App.js - Safe area insets and responsive positioning for mobile browsers
-<div 
-  className="absolute bottom-20 md:bottom-6 right-6 z-20"
-  style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
->
-  {/* Weather stats positioned higher on mobile to avoid tab bar cutoff */}
-</div>
-```
-
-These optimizations ensure weather information displays correctly on mobile devices in production, preventing cutoff issues caused by mobile browser UI variations. The responsive positioning moves weather stats from 24px to 80px from the bottom on mobile devices, providing ample clearance for browsers with bottom tab management.
-
-### 3D Scene Mobile Positioning
-
-The forecast portals and text also receive mobile-specific positioning adjustments to prevent overlap with mobile browser UI:
-
-```javascript
-// ForecastPortals.js - Mobile-responsive portal positioning
-const isMobile = viewport.width < 6;
-const scale = isMobile ? 0.7 : 1;
-const spacing = isMobile ? 2.2 : 3;
-const mobileYPosition = isMobile ? 0.5 : -0.5; // Move portals up on mobile
-
-return (
-  <group position={[0, mobileYPosition, 0]} scale={[scale, scale, scale]}>
-    {/* Forecast portals positioned higher on mobile */}
-  </group>
-);
-```
-
-```javascript
-// Scene3D.js - Responsive forecast text positioning
-const ResponsiveText = ({ isNight, isLoading }) => {
-  const { viewport } = useThree();
-  const isMobile = viewport.width < 6;
-  const textScale = isMobile ? 0.7 : 1;
-  const textPosition = isMobile ? [0, -0.6, 0] : [0, -2.1, 0];
-  
-  if (isLoading) return null;
-  
-  return (
-    <Text
-      position={textPosition}
-      fontSize={0.2 * textScale}
-      color={isNight ? "#FFFFFF" : "#333333"}
-      anchorX="center"
-      anchorY="middle"
-      letterSpacing={0.7}
-    >
-      THREE DAY FORECAST
-    </Text>
-  );
-};
-```
-
-These positioning adjustments move the forecast portals up by 1 unit and the "THREE DAY FORECAST" text up by 1.5 units on mobile devices, ensuring they remain fully visible above mobile browser tab bars.
-
-### Particle System Performance Optimization
-
-Mobile devices struggle with multiple concurrent particle systems. The application implements adaptive particle counts based on rendering context:
-
-```javascript
-// WeatherVisualization.js - Context-aware particle optimization
-{weatherType === 'rainy' && <Rain count={portalMode ? 100 : 800} />}
-{weatherType === 'snowy' && <Snow count={portalMode ? 50 : 400} />}
-```
-
-This dramatic reduction (87.5% fewer particles in portals) prevents performance issues when multiple forecast portals show precipitation simultaneously. Instead of rendering 4 × 800 = 3,200 rain particles when the main scene and all three forecast portals show rain, the system renders 800 + (3 × 100) = 1,100 particles total, maintaining smooth 60fps performance on mobile devices.
-
-### Cloud System Optimization
-
-Mobile devices also struggle with multiple cloud systems rendering simultaneously in forecast portals. The cloud component implements adaptive rendering based on portal context:
-
-```javascript
-// Clouds.js - Portal-aware cloud optimization
-const Clouds = ({ intensity = 0.7, speed = 0.1, weatherCondition, isPartlyCloudy = false, portalMode = false }) => {
-  const colors = getCloudColors();
-  
-  // Portal mode: show fewer, centered clouds for performance
-  if (portalMode) {
-    return (
-      <group>
-        <DreiClouds material={THREE.MeshLambertMaterial}>
-          {/* Only 2 centered clouds for portal preview */}
-          <Cloud
-            segments={40}
-            bounds={[8, 3, 3]}
-            volume={8}
-            color={colors.primary}
-            fade={50}
-            speed={speed}
-            opacity={colors.intensity}
-            position={[0, 4, -2]}
-          />
-          <Cloud
-            segments={35}
-            bounds={[6, 2.5, 2.5]}
-            volume={6}
-            color={colors.secondary}
-            fade={60}
-            speed={speed * 0.8}
-            opacity={colors.intensity * 0.8}
-            position={[2, 3, -3]}
-          />
-        </DreiClouds>
-      </group>
-    );
-  }
-  
-  // Full cloud system for main scene and fullscreen portals
-  return (
-    <group>
-      <DreiClouds material={THREE.MeshLambertMaterial}>
-        {/* 6 clouds with full detail for immersive experience */}
-        {/* ... full cloud configuration ... */}
-      </DreiClouds>
-    </group>
-  );
-};
-```
-
-```javascript
-// WeatherVisualization.js - Portal mode propagation
-<Clouds intensity={0.8} speed={0.15} portalMode={portalMode} />
-```
-
-This optimization reduces cloud complexity from 6 detailed clouds to 2 centered clouds in portal previews (67% reduction), while maintaining the full cloud system when users click into individual forecast portals for detailed viewing.
-
-### Night Sky Mobile Rendering Issues
-
-Mobile GPU limitations with complex atmospheric scattering led to night sky rendering inconsistencies between desktop and mobile devices. The solution replaces the computationally expensive Sky component with a simple black background during nighttime:
-
-```javascript
-// Scene3D.js - Mobile-optimized night sky rendering
-{!portalMode && isNight && <SceneBackground key={`bg-night`} backgroundColor={'#000000'} />}
-
-{/* Sky component only renders for non-night times */}
-{timeOfDay !== 'night' && (
-  <Sky
-    key={`main-sky-${timeOfDay}-${portalMode}`}
-    sunPosition={(() => {
-      if (timeOfDay === 'dawn') {
-        return [100, -5, 100]; // Sun below horizon for darker dawn
-      } else if (timeOfDay === 'dusk') {
-        return [-100, -5, 100]; // Sun below horizon for darker dusk
-      } else { // day
-        return [100, 20, 100]; // Keep existing day value
-      }
-    })()}
-    inclination={(() => {
-      if (timeOfDay === 'dawn' || timeOfDay === 'dusk') {
-        return 0.6; // Medium inclination for dawn/dusk
-      } else { // day
-        return 0.9; // Keep existing day value
-      }
-    })()}
-    turbidity={(() => {
-      if (timeOfDay === 'dawn' || timeOfDay === 'dusk') {
-        return 8; // Higher turbidity for atmospheric scattering
-      } else { // day
-        return 2; // Keep existing day value
-      }
-    })()}
-  />
-)}
-
-{/* Stars preserved for nighttime atmosphere */}
-{isNight && <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />}
-```
-
-This approach ensures consistent dark night skies across all devices while preserving the stellar environment that makes nighttime scenes visually compelling.
-
-### Smooth Animation Performance
-
-Mobile devices often have inconsistent frame rates that cause choppy animations. The sun and moon rotation systems were optimized to use absolute time values instead of frame-dependent deltas:
-
-```javascript
-// Sun.js & Moon.js - Frame-rate independent rotation
+// Sun.js & Moon.js - Frame-rate independent animation
 useFrame((state) => {
   if (sunRef.current) {
     sunRef.current.rotation.y = state.clock.getElapsedTime() * 0.1;
@@ -931,7 +718,56 @@ useFrame((state) => {
 });
 ```
 
-This change from delta-time accumulation to absolute time-based rotation ensures perfectly smooth celestial body movement regardless of mobile device performance variations.
+Using absolute time values instead of frame deltas ensures smooth celestial movement regardless of device performance.
+
+### Portal Performance Tuning
+
+The most significant optimization comes from our portal system's adaptive rendering. When multiple forecast portals show precipitation simultaneously, we dramatically reduce particle counts:
+
+```javascript
+// WeatherVisualization.js - Smart particle scaling
+{weatherType === 'rainy' && <Rain count={portalMode ? 100 : 800} />}
+{weatherType === 'snowy' && <Snow count={portalMode ? 50 : 400} />}
+```
+
+This prevents the nightmare scenario of rendering 4 × 800 = 3,200 rain particles when all portals show rain. Instead, we get 800 + (3 × 100) = 1,100 total particles while maintaining the visual effect.
+
+## API Reliability and Caching
+
+Beyond 3D performance, we need the app to work reliably even when the weather API is slow, down, or rate-limited. The system implements smart caching and graceful degradation to keep the experience smooth.
+
+### Intelligent Caching
+
+Rather than hitting the API for every request, we cache weather responses for 10 minutes:
+
+```javascript
+// api/weather.js - Simple but effective caching
+const cache = new Map();
+const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
+
+const cacheKey = `weather:${location.toLowerCase()}`;
+const cachedData = cache.get(cacheKey);
+
+if (cachedData && Date.now() - cachedData.timestamp < CACHE_DURATION) {
+  return res.json({ ...cachedData.data, cached: true });
+}
+```
+
+This gives users instant responses for recently searched locations and keeps the app responsive during API slowdowns.
+
+### Rate Limiting and Fallback
+
+When users exceed our 20 requests per hour limit, the system smoothly switches to demo data instead of showing errors:
+
+```javascript
+// weatherService.js - Graceful degradation
+if (error.response?.status === 429) {
+  console.log('Too many requests');
+  return getDemoWeatherData(location);
+}
+```
+
+The demo data includes time-aware day/night detection, so even the fallback experience shows proper lighting and sky colors based on the user's local time.
 
 ## Conclusion
 
@@ -941,7 +777,7 @@ By combining React Three Fiber's declarative approach with advanced WebGL techni
 
 The project showcases several cutting-edge web graphics techniques:
 - **Instanced particle systems** that render thousands of raindrops and snowflakes without compromising performance
-- **Advanced GLSL shaders** that create photorealistic atmospheric effects and volumetric lighting
+- **Sophisticated atmospheric effects** using Three.js and Drei components for realistic lighting
 - **Render-to-texture portals** that provide seamless transitions between different weather states
 - **Real-time occlusion detection** that makes lens flares respond naturally to clouds and weather patterns
 - **API-driven procedural generation** that transforms meteorological data into living 3D landscapes
@@ -952,4 +788,4 @@ The result is more than a weather app—it's a window into a living, breathing d
 
 **Demo**: [Live Demo](#) | **Code**: [GitHub Repository](#)
 
-*Built with React Three Fiber • Three.js • WebGL • GLSL*
+*Built with React Three Fiber • Three.js • WebGL*
