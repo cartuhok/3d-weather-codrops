@@ -9,7 +9,7 @@ An immersive 3D weather visualization that transforms real-time meteorological d
 [Read the tutorial](#)
 
 
-[View the demo](https://3d-weather-codedrops.vercel.app/)
+[View the demo](https://3d-weather-codrops.vercel.app/)
 
 ## Installing:
 ```bash
