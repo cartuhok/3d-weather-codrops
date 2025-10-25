@@ -6,7 +6,7 @@ An immersive 3D weather visualization that transforms real-time meteorological d
 ![Weather 3D Screenshot](https://i.imgur.com/3cq2OLc.png)
 
 
-[Read the tutorial](#)
+[Read the tutorial](https://tympanus.net/codrops/2025/09/18/creating-an-immersive-3d-weather-visualization-with-react-three-fiber/)
 
 
 [View the demo](https://3d-weather-codrops.vercel.app/)
